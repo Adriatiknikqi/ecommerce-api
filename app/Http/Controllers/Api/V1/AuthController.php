@@ -7,45 +7,48 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\ValidationException;
+use App\Http\Requests\Api\V1\RegisterRequest;
+use App\Http\Requests\Api\V1\LoginRequest;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+    public function register(RegisterRequest  $request)
     {
-        $data = $request->validate([
-            'name' => ['required','string','max:255'],
-            'email' => ['required','email','max:255','unique:users,email'],
-            'password' => ['required','string','min:8'],
-        ]);
 
         $user = User::create([
-            'name' => $data['name'],
-            'email' => $data['email'],
-            'password' => bcrypt($data['password']),
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => bcrypt($request->password),
         ]);
 
-        // SPA: zakonisht login menjëherë pas register
-        Auth::login($user);
+        $token = $user->createToken('ecommerce-frontend')->plainTextToken;
 
-        return response()->json(['user' => $user], 201);
+        return response()->json([
+            'token' => $token,
+            'user' => $user,
+        ], 201);
     }
 
-    public function login(Request $request)
+    public function login(LoginRequest $request)
     {
-        $credentials = $request->validate([
-            'email' => ['required','email'],
-            'password' => ['required','string'],
-        ]);
-
-        if (! Auth::attempt($credentials, true)) {
-            throw ValidationException::withMessages([
-                'email' => ['Invalid credentials.'],
-            ]);
+        
+        if (! Auth::attempt($request->only('email', 'password'), true)) {
+            return response()->json([
+                'message' => 'Invalid credentials'
+            ], 422);
         }
 
-        $request->session()->regenerate();
+        $user = $request->user();
 
-        return response()->json(['user' => $request->user()]);
+        // opsionale: fshij tokenat e vjetër (vetëm 1 device)
+        // $user->tokens()->delete();
+
+        $token = $user->createToken('ecommerce-frontend')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user' => $user,
+        ]);
     }
 
     public function me(Request $request)
@@ -55,11 +58,8 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        Auth::logout();
+         $request->user()->currentAccessToken()->delete();
 
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
-
-        return response()->json(['ok' => true]);
+         return response()->json(['ok' => true]);
     }
 }
