@@ -7,7 +7,10 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::get('/health', fn () => response()->json([
-    'status' => 'ok',
-    'service' => 'ecommerce-api',
-]));
+Route::prefix('v1')->group(function () {
+    Route::get('/health', fn () => response()->json([
+        'status' => 'ok',
+        'service' => 'ecommerce-api',
+        'version' => 'v1',
+    ]));
+});
